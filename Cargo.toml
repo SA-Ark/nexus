@@ -1,0 +1,26 @@
+[package]
+name = "nexus-runtime"
+version = "0.1.0"
+edition = "2021"
+description = "Multi-agent orchestration runtime: dependency-DAG scheduling, supervised execution with heartbeat liveness, automatic recovery with escalation, human-in-the-loop blockers, and token-cost governance."
+license = "MIT"
+repository = "https://github.com/SA-Ark/nexus"
+keywords = ["orchestration", "agents", "dag", "supervisor", "runtime"]
+categories = ["asynchronous", "concurrency"]
+
+[lib]
+name = "nexus"
+path = "src/lib.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+
+[profile.release]
+lto = true
