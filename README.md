@@ -7,8 +7,8 @@
 **A multi-agent orchestration runtime — dependency-DAG scheduling, supervised execution with
 evidence-based liveness, automatic recovery, human-in-the-loop blockers, and token-cost governance.**
 
-Nexus is the supervision pattern behind a production fleet of **40+ services** (99.97% uptime,
-3-second auto-recovery), extracted as a standalone, embeddable Rust library. It answers the question
+Nexus is the supervision pattern behind a production fleet of **40+ services** with evidence-based
+3-second stall recovery, extracted as a standalone, embeddable Rust library. It answers the question
 every agent system eventually faces: *what happens when a worker hangs, fails, overspends, or needs a
 human?* — with explicit machinery instead of hope.
 
@@ -125,8 +125,8 @@ cargo doc --open      # full API docs
 
 ## Provenance & scope
 
-Extracted from the orchestration layer of a production multi-service system (40+ services, 99.97%
-uptime, 3 s auto-recovery, token-cost governance). This repository is the *pattern* — the scheduling,
+Extracted from the orchestration layer of a production multi-service system (40+ services,
+evidence-based 3 s auto-recovery, token-cost governance). This repository is the *pattern* — the scheduling,
 supervision, recovery, escalation, and governance machinery — as a clean-room library with zero
 deployment-specific code. Persistence, transports, and agent integrations are deliberately out of
 scope: implement `Worker` and bring your own.
