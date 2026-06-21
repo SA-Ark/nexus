@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nexus — Multi-Agent Orchestration Runtime (live demo)</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #121722;
+    --panel-2: #161c28;
+    --border: #232c3d;
+    --text: #e6ecf5;
+    --muted: #9aa7bd;
+    --accent: #5b9dff;
+    --pending: #3a4456;
+    --running: #f2b34a;
+    --blocked: #c084fc;
+    --completed: #3ddc97;
+    --failed: #ff6b6b;
+    --cancelled: #6b7585;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    padding: 22px 28px 18px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #10151f 0%, var(--bg) 100%);
+  }
+  header h1 { margin: 0; font-size: 24px; letter-spacing: -0.01em; }
+  header h1 .mark { color: var(--accent); }
+  header p { margin: 6px 0 0; color: var(--muted); font-size: 16px; max-width: 880px; }
+  .wrap { display: grid; grid-template-columns: 1fr 380px; gap: 18px; padding: 18px 28px 40px; align-items: start; }
+  @media (max-width: 1100px) { .wrap { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+  }
+  .card-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  button {
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 9px;
+    padding: 9px 16px; color: var(--text); background: var(--panel-2);
+    transition: transform .05s ease, background .15s ease, border-color .15s ease;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #06101f; }
+  .status-pill {
+    font-size: 14px; color: var(--muted); padding: 4px 10px;
+    border: 1px solid var(--border); border-radius: 999px;
+  }
+  #graph { width: 100%; display: block; background: #0d111a; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 12px 16px; font-size: 14px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  #log { max-height: 380px; overflow-y: auto; padding: 6px 0; }
+  .ev { padding: 8px 16px; border-bottom: 1px solid #1b2230; font-size: 14px; display: flex; gap: 10px; }
+  .ev:last-child { border-bottom: none; }
+  .ev .t { color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 70px; font-size: 14px; padding-top: 1px; }
+  .ev .b { flex: 1; }
+  .ev .tag { font-weight: 700; margin-right: 4px; }
+  .ev .who { font-weight: 700; }
+  .ev.completed .tag { color: var(--completed); }
+  .ev.running .tag { color: var(--running); }
+  .ev.retry .tag { color: var(--running); }
+  .ev.blocked .tag { color: var(--blocked); }
+  .ev.failed .tag { color: var(--failed); }
+  .ev.cancelled .tag { color: var(--cancelled); }
+  .ev.budget .tag { color: var(--failed); }
+  .ev.finished .tag { color: var(--accent); }
+  .ev .meta { color: var(--muted); font-size: 14px; }
+  #blocker {
+    margin: 14px 16px; padding: 14px; border: 1px solid var(--blocked);
+    border-radius: 10px; background: rgba(192,132,252,0.08); display: none;
+  }
+  #blocker.show { display: block; }
+  #blocker h3 { margin: 0 0 4px; font-size: 15px; color: var(--blocked); }
+  #blocker p { margin: 0 0 12px; font-size: 15px; }
+  #blocker .row { display: flex; gap: 10px; }
+  .stats { display: flex; gap: 18px; padding: 12px 16px; flex-wrap: wrap; }
+  .stat { font-size: 14px; }
+  .stat b { font-size: 20px; display: block; font-variant-numeric: tabular-nums; }
+  .stat .l { color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: .04em; }
+  footer { padding: 0 28px 36px; color: var(--muted); font-size: 14px; }
+  footer a { color: var(--accent); text-decoration: none; }
+  text { font-family: inherit; }
+</style>
+</head>
+<body>
+  <header>
+    <h1><span class="mark">Nexus</span> — Multi-Agent Orchestration Runtime</h1>
+    <p>
+      A Rust runtime that schedules a <strong>dependency DAG</strong> of agent tasks, runs ready work in
+      parallel, supervises each worker with evidence-based liveness (heartbeats, not wall-clock guesses),
+      auto-recovers transient failures, pauses for human decisions, and governs token cost.
+      Press <strong>Run workflow</strong> and watch a real supervisor drive nine agents to completion.
+    </p>
+  </header>
+
+  <div class="wrap">
+    <section>
+      <div class="card">
+        <div class="card-head">
+          <h2>Workflow DAG — &ldquo;ship a feature&rdquo;</h2>
+          <div class="controls">
+            <span class="status-pill" id="runState">idle</span>
+            <button class="primary" id="runBtn">Run workflow</button>
+          </div>
+        </div>
+        <svg id="graph" viewBox="0 0 960 560" preserveAspectRatio="xMidYMid meet" role="img"
+             aria-label="Task dependency graph"></svg>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--pending)"></i>pending</span>
+          <span><i class="swatch" style="background:var(--running)"></i>running</span>
+          <span><i class="swatch" style="background:var(--blocked)"></i>blocked (needs human)</span>
+          <span><i class="swatch" style="background:var(--completed)"></i>completed</span>
+          <span><i class="swatch" style="background:var(--failed)"></i>failed</span>
+          <span><i class="swatch" style="background:var(--cancelled)"></i>cancelled</span>
+        </div>
+        <div class="stats" id="stats">
+          <div class="stat"><b id="sDone">0</b><span class="l">completed</span></div>
+          <div class="stat"><b id="sRun">0</b><span class="l">running</span></div>
+          <div class="stat"><b id="sFail">0</b><span class="l">failed</span></div>
+          <div class="stat"><b id="sCancel">0</b><span class="l">cancelled</span></div>
+          <div class="stat"><b id="sTotal">9</b><span class="l">total tasks</span></div>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="card">
+        <div class="card-head"><h2>Runtime event stream</h2></div>
+        <div id="blocker">
+          <h3>Human-in-the-loop blocker</h3>
+          <p id="blockerQ"></p>
+          <div class="row">
+            <button class="primary" data-answer="production">Approve: production</button>
+            <button data-answer="staging">Approve: staging</button>
+          </div>
+        </div>
+        <div id="log"></div>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    Every line above is a real <code>RuntimeEvent</code> broadcast by the Rust supervisor over
+    Server-Sent Events. The agents here are simulated (no LLM calls), but the scheduling, supervision,
+    retry, blocker, and cost machinery is the production runtime.
+    &nbsp;&middot;&nbsp; <a href="https://github.com/SA-Ark/nexus">Source on GitHub</a>
+  </footer>
+
+<script>
+(function () {
+  "use strict";
+  const STATUS_COLOR = {
+    pending: "var(--pending)", running: "var(--running)", blocked: "var(--blocked)",
+    completed: "var(--completed)", failed: "var(--failed)", cancelled: "var(--cancelled)",
+  };
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("graph");
+  const log = document.getElementById("log");
+  const runBtn = document.getElementById("runBtn");
+  const runState = document.getElementById("runState");
+  const blocker = document.getElementById("blocker");
+  const blockerQ = document.getElementById("blockerQ");
+
+  let nodes = [];
+  let nodeEls = {};
+  let positions = {};
+  let blockedTask = null;
+  let es = null;
+
+  function computeLayers(nodes) {
+    const byId = {}; nodes.forEach(n => byId[n.id] = n);
+    const layer = {};
+    function depth(id, seen) {
+      if (layer[id] !== undefined) return layer[id];
+      if (seen.has(id)) return 0;
+      seen.add(id);
+      const deps = byId[id].depends_on || [];
+      const d = deps.length === 0 ? 0 : 1 + Math.max.apply(null, deps.map(x => depth(x, seen)));
+      layer[id] = d; return d;
+    }
+    nodes.forEach(n => depth(n.id, new Set()));
+    return layer;
+  }
+
+  function layout(nodes) {
+    const layer = computeLayers(nodes);
+    const cols = {};
+    nodes.forEach(n => { (cols[layer[n.id]] = cols[layer[n.id]] || []).push(n); });
+    const maxLayer = Math.max.apply(null, Object.keys(cols).map(Number));
+    const W = 960, H = 560, padX = 72, padY = 50;
+    const colGap = (W - 2 * padX) / Math.max(1, maxLayer);
+    Object.keys(cols).forEach(l => {
+      const arr = cols[l].sort((a, b) => a.id.localeCompare(b.id));
+      const n = arr.length;
+      const rowGap = (H - 2 * padY) / Math.max(1, n);
+      arr.forEach((node, i) => {
+        positions[node.id] = { x: padX + Number(l) * colGap, y: padY + rowGap * (i + 0.5) };
+      });
+    });
+  }
+
+  function svgEl(name, attrs) {
+    const e = document.createElementNS(SVGNS, name);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  function drawGraph() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    positions = {};
+    layout(nodes);
+
+    const defs = svgEl("defs", {});
+    const marker = svgEl("marker", { id: "arrow", viewBox: "0 0 10 10", refX: "9", refY: "5",
+      markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse" });
+    marker.appendChild(svgEl("path", { d: "M0,0 L10,5 L0,10 z", fill: "#3a4456" }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    nodes.forEach(n => {
+      (n.depends_on || []).forEach(dep => {
+        const a = positions[dep], b = positions[n.id];
+        if (!a || !b) return;
+        const mx = (a.x + b.x) / 2;
+        svg.appendChild(svgEl("path", {
+          d: `M ${a.x + 64} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x - 64} ${b.y}`,
+          fill: "none", stroke: "#2a3447", "stroke-width": "2", "marker-end": "url(#arrow)",
+        }));
+      });
+    });
+
+    nodeEls = {};
+    nodes.forEach(n => {
+      const p = positions[n.id];
+      const g = svgEl("g", { transform: `translate(${p.x},${p.y})` });
+      const rect = svgEl("rect", { x: -64, y: -26, width: 128, height: 52, rx: 10,
+        fill: "var(--panel-2)", stroke: STATUS_COLOR.pending, "stroke-width": "2.5" });
+      g.appendChild(rect);
+      const label = svgEl("text", { "text-anchor": "middle", y: -3, fill: "var(--text)",
+        "font-size": "14", "font-weight": "600" });
+      label.textContent = n.label;
+      g.appendChild(label);
+      const role = svgEl("text", { "text-anchor": "middle", y: 15, fill: "var(--muted)", "font-size": "14" });
+      role.textContent = n.role;
+      g.appendChild(role);
+      const dot = svgEl("circle", { cx: 52, cy: -16, r: 5, fill: STATUS_COLOR.pending });
+      g.appendChild(dot);
+      const title = svgEl("title", {});
+      title.textContent = `${n.label} — budget ${Number(n.budget).toLocaleString()} tokens`;
+      g.appendChild(title);
+      svg.appendChild(g);
+      nodeEls[n.id] = { rect, dot };
+    });
+  }
+
+  function applySnapshot(tasks) {
+    let done = 0, run = 0, fail = 0, cancel = 0;
+    tasks.forEach(t => {
+      const el = nodeEls[t.id];
+      if (el) {
+        const c = STATUS_COLOR[t.status] || STATUS_COLOR.pending;
+        el.rect.setAttribute("stroke", c);
+        el.dot.setAttribute("fill", c);
+      }
+      if (t.status === "completed") done++;
+      else if (t.status === "running") run++;
+      else if (t.status === "failed") fail++;
+      else if (t.status === "cancelled") cancel++;
+    });
+    document.getElementById("sDone").textContent = done;
+    document.getElementById("sRun").textContent = run;
+    document.getElementById("sFail").textContent = fail;
+    document.getElementById("sCancel").textContent = cancel;
+    document.getElementById("sTotal").textContent = tasks.length || nodes.length;
+  }
+
+  function fmtTime() {
+    const d = new Date();
+    return d.toLocaleTimeString([], { hour12: false }) + "." +
+      String(d.getMilliseconds()).padStart(3, "0").slice(0, 2);
+  }
+
+  // Build log rows with safe DOM APIs (textContent), never innerHTML.
+  function addLog(cls, tag, who, meta) {
+    const row = document.createElement("div");
+    row.className = "ev " + cls;
+    const t = document.createElement("span");
+    t.className = "t"; t.textContent = fmtTime();
+    const b = document.createElement("span");
+    b.className = "b";
+    const tagEl = document.createElement("span");
+    tagEl.className = "tag"; tagEl.textContent = tag;
+    b.appendChild(tagEl);
+    if (who) {
+      const whoEl = document.createElement("span");
+      whoEl.className = "who"; whoEl.textContent = who;
+      b.appendChild(whoEl);
+    }
+    if (meta) {
+      const metaEl = document.createElement("span");
+      metaEl.className = "meta"; metaEl.textContent = " " + meta;
+      b.appendChild(metaEl);
+    }
+    row.appendChild(t); row.appendChild(b);
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function handleEvent(ev) {
+    switch (ev.event) {
+      case "task_started":  addLog("running", "STARTED", ev.task, "attempt " + ev.attempt); break;
+      case "task_completed": addLog("completed", "DONE", ev.task, null); break;
+      case "task_retrying": addLog("retry", "RETRY", ev.task, "→ attempt " + ev.attempt + ": " + ev.error); break;
+      case "task_blocked":
+        addLog("blocked", "BLOCKED", ev.task, ev.question);
+        showBlocker(ev.task, ev.question); break;
+      case "blocker_resolved": addLog("blocked", "RESOLVED", ev.task, null); hideBlocker(); break;
+      case "task_failed": addLog("failed", "FAILED", ev.task, ev.error); break;
+      case "task_cancelled": addLog("cancelled", "CANCELLED", ev.task, ev.reason); break;
+      case "worker_stall_suspected":
+        addLog("retry", "STALL?", ev.task, "heartbeat stale " + ev.heartbeat_age_ms + "ms"); break;
+      case "worker_stall_confirmed": addLog("failed", "STALLED", ev.task, "recovering"); break;
+      case "budget_rejected":
+        addLog("budget", "BUDGET", ev.task, "rejected (need " + ev.requested + ", have " + ev.available + ")"); break;
+      case "run_finished":
+        addLog("finished", "FINISHED", null,
+          ev.completed + " completed, " + ev.failed + " failed, " + ev.cancelled + " cancelled");
+        runState.textContent = "finished";
+        runBtn.disabled = false; runBtn.textContent = "Run again";
+        break;
+    }
+  }
+
+  function showBlocker(task, q) {
+    blockedTask = task; blockerQ.textContent = q;
+    blocker.classList.add("show");
+    runState.textContent = "waiting for human";
+  }
+  function hideBlocker() {
+    blocker.classList.remove("show"); blockedTask = null;
+    runState.textContent = "running";
+  }
+
+  blocker.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-answer]");
+    if (!btn || !blockedTask) return;
+    const answer = btn.getAttribute("data-answer");
+    await fetch("/api/resolve", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ task: blockedTask, answer }),
+    });
+  });
+
+  function connectStream() {
+    if (es) es.close();
+    es = new EventSource("/api/events");
+    es.onmessage = (m) => {
+      let msg; try { msg = JSON.parse(m.data); } catch (e) { return; }
+      if (msg.kind === "run_started") {
+        while (log.firstChild) log.removeChild(log.firstChild);
+        hideBlocker();
+        addLog("finished", "RUN", null, "supervisor started — dispatching ready tasks");
+      } else if (msg.kind === "snapshot") {
+        applySnapshot(msg.tasks);
+      } else if (msg.kind === "event") {
+        handleEvent(msg.event);
+      }
+    };
+    es.onerror = () => { /* browser auto-reconnects */ };
+  }
+
+  async function run() {
+    runBtn.disabled = true; runBtn.textContent = "Running…";
+    runState.textContent = "running";
+    Object.values(nodeEls).forEach(el => {
+      el.rect.setAttribute("stroke", STATUS_COLOR.pending);
+      el.dot.setAttribute("fill", STATUS_COLOR.pending);
+    });
+    await fetch("/api/run", { method: "POST" });
+  }
+
+  runBtn.addEventListener("click", run);
+
+  fetch("/api/dag").then(r => r.json()).then(d => {
+    nodes = d.nodes;
+    drawGraph();
+    connectStream();
+  });
+})();
+</script>
+</body>
+</html>
