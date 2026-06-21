@@ -156,6 +156,12 @@ impl Supervisor {
         self.events_tx.subscribe()
     }
 
+    /// The validated DAG this supervisor is driving (for introspection and
+    /// visualization).
+    pub fn dag(&self) -> &TaskDag {
+        &self.dag
+    }
+
     /// Current task states (cloned snapshot).
     pub fn states(&self) -> HashMap<TaskId, TaskState> {
         self.states.lock().expect("states lock").clone()

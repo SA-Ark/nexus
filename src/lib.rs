@@ -62,6 +62,11 @@ pub mod supervisor;
 pub mod task;
 pub mod worker;
 
+/// The built-in example workflow that powers the live demo server.
+/// Compiled only with the `server` feature.
+#[cfg(feature = "server")]
+pub mod demo;
+
 pub mod prelude {
     pub use crate::budget::{BudgetError, BudgetSnapshot, CostGovernor};
     pub use crate::supervisor::{RunReport, RuntimeEvent, Supervisor, SupervisorConfig};

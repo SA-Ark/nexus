@@ -13,12 +13,34 @@ readme = "README.md"
 name = "nexus"
 path = "src/lib.rs"
 
+# The live demo server. Built only with `--features server` so the core
+# library stays dependency-light; the demo brings its own HTTP stack.
+[[bin]]
+name = "nexus-server"
+path = "src/bin/server.rs"
+required-features = ["server"]
+
+[features]
+default = []
+# HTTP/SSE demo server + the built-in example workflow.
+server = [
+  "dep:hyper", "dep:hyper-util", "dep:http-body-util", "dep:bytes", "dep:futures-util",
+  "tokio/net", "tokio/io-util",
+]
+
 [dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 tracing = "0.1"
+
+# server-only deps (self-hosted; no web framework, hyper directly)
+hyper = { version = "1", features = ["server", "http1"], optional = true }
+hyper-util = { version = "0.1", features = ["tokio"], optional = true }
+http-body-util = { version = "0.1", optional = true }
+bytes = { version = "1", optional = true }
+futures-util = { version = "0.3", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
