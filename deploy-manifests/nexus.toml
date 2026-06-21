@@ -1,0 +1,48 @@
+[service]
+name = "nexus"
+description = "Nexus — public portfolio demo of the multi-agent orchestration runtime. A standalone Rust HTTP/SSE server that runs the built-in example DAG and streams live supervisor events to a browser visualization."
+repo_dir = "~/claude-test/nexus"
+remote = "origin"
+branch = "main"
+
+[deploy]
+deploy_target = "vps"
+deploy_mode = "binary"
+host_port = 8099
+binary_name = "nexus-server"
+# The demo server + example workflow live behind the `server` feature so the
+# core library stays dependency-light. Release build with LTO.
+build_cmd = "cargo build --release --features server --bin nexus-server"
+build_dir = "~/claude-test/nexus"
+vps_path = "/opt/ark/nexus/"
+systemd_unit = "nexus"
+build_local = true
+# The single-page UI is compiled into the binary (include_str!), so there is
+# no separate frontend artifact to ship.
+frontend_type = "none"
+tunnel_routed = true
+expected_tunnel_id = "670705eb-f7d4-47a5-bcd6-ec2c22bf4b77"
+public_url = "https://nexus.chakrakali.com"
+
+[health]
+path = "/healthz"
+port = 8099
+
+[alerting]
+required = false
+
+[rollback]
+keep_versions = 5
+
+[wiring]
+# Self-contained: no database, no LLM, no third-party services. The demo
+# agents are simulated in-process.
+depends_on = []
+depended_by = []
+
+[env.vps]
+PORT = "8099"
+# Speed multiplier for the simulated agents; 1.0 = scripted real-time timing.
+# Left at 1.0 so a visitor sees the supervisor pace work realistically.
+NEXUS_DEMO_SPEED = "1.0"
+RUST_LOG = "nexus=info"

@@ -12,6 +12,31 @@ Nexus is the supervision pattern behind a production fleet of **40+ services** w
 every agent system eventually faces: *what happens when a worker hangs, fails, overspends, or needs a
 human?* — with explicit machinery instead of hope.
 
+## ▶ Try it live
+
+**[nexus.chakrakali.com](https://nexus.chakrakali.com)** — open it and press **Run workflow**.
+
+A self-contained demo server runs the real supervisor over a built-in *“ship a feature”* workflow of
+nine agents and streams every decision to the browser over Server-Sent Events. You watch the actual
+runtime — not a mock-up — schedule the DAG:
+
+- **parallel dispatch** — `research` and `schema` fan out from `intake`; `backend` and `frontend` run side by side
+- **auto-recovery** — `frontend` hits a transient failure and the supervisor **retries it** (visible on the event stream)
+- **human-in-the-loop** — `deploy_gate` **blocks** and asks *“prod or staging?”*; you click an answer and the run resumes
+- **completion** — `deploy` → `verify` finish, and the run reports `9 completed, 0 failed, 0 cancelled`
+
+The agents here are *simulated* (no LLM calls or external services), but the scheduling, supervision,
+retry, blocker, and cost machinery is the production runtime — the exact code in `src/`.
+
+Run it yourself in one command:
+
+```bash
+cargo run --release --features server --bin nexus-server   # then open http://localhost:8099
+```
+
+The single-page UI is compiled into the binary, so the server is a single self-contained artifact —
+no database, no asset directory, no third-party dependencies.
+
 ## Architecture
 
 ```
@@ -119,9 +144,28 @@ impl Worker for MyAgentWorker {
 - the budget governor rejects an unaffordable task and fails it loudly when nothing can free budget
 
 ```bash
-cargo test            # 18 tests
-cargo doc --open      # full API docs
+cargo test                      # 18 tests (core library)
+cargo test --features server    # 21 tests (adds the example-workflow demo)
+cargo doc --open                # full API docs
 ```
+
+## The demo server
+
+The live demo is a thin, dependency-light HTTP/SSE server built on `hyper` (behind the `server`
+feature so the core library stays minimal). It exposes the runtime over a tiny JSON API:
+
+| Method & path | Purpose |
+|---|---|
+| `GET /` | the single-page UI (compiled into the binary) |
+| `GET /api/dag` | the example DAG structure — nodes, roles, dependencies, budgets |
+| `POST /api/run` | start a fresh run (builds a new supervisor) |
+| `GET /api/events` | Server-Sent Events: every `RuntimeEvent` plus a full state snapshot after each |
+| `POST /api/resolve` | answer the pending human-in-the-loop blocker (`{"task","answer"}`) |
+| `GET /healthz` | liveness probe |
+
+The example workflow and the simulated agent fleet live in [`src/demo.rs`](src/demo.rs); the server in
+[`src/bin/server.rs`](src/bin/server.rs). `PORT` (default `8099`) and `NEXUS_DEMO_SPEED` (default `1.0`,
+higher = faster) are the only configuration.
 
 ## Provenance & scope
 

@@ -35,13 +35,19 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
 
+      - name: Clippy (server feature)
+        run: cargo clippy --all-targets --features server -- -D warnings
+
       - name: Tests
         run: cargo test --all-targets
+
+      - name: Tests (server feature)
+        run: cargo test --all-targets --features server
 
       - name: Doc tests
         run: cargo test --doc
 
       - name: Docs build
-        run: cargo doc --no-deps
+        run: cargo doc --no-deps --features server
         env:
           RUSTDOCFLAGS: -D warnings
