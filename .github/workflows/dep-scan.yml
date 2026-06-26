@@ -1,0 +1,12 @@
+name: dep-scan
+# Always-on weekly dependency scan on GitHub's cloud runners (laptop-independent).
+# Delegates to the shared polyglot reusable workflow in SA-Ark/ark-cli.
+on:
+  schedule:
+    - cron: "37 4 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  scan:
+    uses: SA-Ark/ark-cli/.github/workflows/dep-scan-reusable.yml@main
